@@ -1,0 +1,345 @@
+﻿<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>산업안전보건관리비 질의회신 뷰어</title>
+  <style>
+    :root {
+      --bg: #f4f7f5;
+      --card: #ffffff;
+      --line: #d8e2dc;
+      --text: #1f2a24;
+      --muted: #5d6b63;
+      --accent: #1b7f5d;
+      --accent-soft: #e8f6f0;
+      --warn: #b54708;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", "Malgun Gothic", sans-serif;
+      background: linear-gradient(140deg, #eef6f2, #f8faf9);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 1100px;
+      margin: 32px auto;
+      padding: 0 16px 32px;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 28px;
+      letter-spacing: -0.4px;
+    }
+
+    .sub {
+      color: var(--muted);
+      margin-bottom: 18px;
+      font-size: 14px;
+    }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 14px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.04);
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font-size: 14px;
+      background: #fff;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    button:hover { filter: brightness(0.98); }
+
+    .meta {
+      margin: 10px 0 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+      padding: 10px;
+    }
+
+    th {
+      background: #f8fbf9;
+      color: #33423a;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tr.done td {
+      background: var(--accent-soft);
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: #fff;
+      margin-top: 4px;
+    }
+
+    .note {
+      width: 100%;
+      min-height: 52px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font-size: 12px;
+      padding: 8px;
+      resize: vertical;
+    }
+
+    .foot {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--warn);
+    }
+
+    @media (max-width: 900px) {
+      .toolbar {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>산업안전보건관리비 질의회신 뷰어</h1>
+    <div class="sub">심플 조회용 로컬 프로그램. 체크 상태와 메모는 브라우저 로컬 저장(localStorage)됩니다.</div>
+
+    <div class="card">
+      <div class="toolbar">
+        <input id="search" type="text" placeholder="검색: 쟁점, 요지, 실무 포인트" />
+        <button id="resetFilter">검색 초기화</button>
+        <button id="exportBtn">JSON 내보내기</button>
+        <button class="primary" id="resetData">체크/메모 초기화</button>
+      </div>
+      <div class="meta" id="count"></div>
+
+      <div style="overflow:auto; max-height: 65vh; border:1px solid var(--line); border-radius: 10px;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:60px;">완료</th>
+              <th style="width:220px;">쟁점</th>
+              <th>회신 요지(핵심)</th>
+              <th>실무 포인트</th>
+              <th style="width:220px;">내 메모</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="foot">주의: 질의회신은 시점별 해석이므로 최종 적용 전 최신 고시/관할관서 확인이 필요합니다.</div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "osh_qna_viewer_v1";
+
+    const seed = [
+      {
+        issue: "계상 주체/적용범위",
+        summary: "발주자(또는 시공 총괄관리자)는 고시에 따라 산업안전보건관리비를 계상해야 함",
+        point: "공사금액, 공사유형, 적용 대상 여부를 먼저 판단"
+      },
+      {
+        issue: "공사금액 기준 적용",
+        summary: "기준금액 이상 공사는 공종별 계상 대상이 될 수 있음",
+        point: "최신 고시(2025-11호) 기준으로 재확인"
+      },
+      {
+        issue: "대상액 구분 불가 공사",
+        summary: "재료비/직접노무비 구분이 어려우면 총공사금액의 일정 비율을 대상액으로 적용하는 해석 존재",
+        point: "특수/해양공사는 견적서 산정 근거 문서화"
+      },
+      {
+        issue: "추가 안전관리자 인건비",
+        summary: "유자격 선임신고 및 안전업무 전담 조건일 때 사용 가능 해석",
+        point: "겸직 여부와 업무일지 증빙 필수"
+      },
+      {
+        issue: "본사 안전전담부서 인건비",
+        summary: "본사 전담조직 비용은 한도와 요건 충족 시 인정된 해석 사례",
+        point: "한도, 전담성, 내부배부 근거를 남길 것"
+      },
+      {
+        issue: "안전시설물 비용 인정범위",
+        summary: "재해예방 목적 시설은 가능하나 제외항목 혼재 시 분리 산정 필요",
+        point: "일체형 장비는 항목별 원가 구분"
+      },
+      {
+        issue: "공기연장 시 추가계상",
+        summary: "대상액 변동이 있는 설계변경은 조정계상, 단순 공기연장은 의무 아님 해석",
+        point: "관리비 부족분도 안전조치는 반드시 이행"
+      },
+      {
+        issue: "사용내역 확인 주기",
+        summary: "원칙적으로 공사 시작 후 6개월마다 1회 이상 확인",
+        point: "6개월 이내 종료 공사는 종료 시 확인"
+      },
+      {
+        issue: "보호구/계절용품 사용",
+        summary: "피복성 복리후생 품목은 불가 판단이 잦고, 한시 확대 품목은 별도 공지 따름",
+        point: "인증기준, 고시 항목, 위원회 의결 여부를 함께 검토"
+      },
+      {
+        issue: "건강진단비 처리",
+        summary: "채용시 건강진단비는 사용 불가 취지의 회신 사례 존재",
+        point: "건강관리비 항목과 최신 기준 문구를 직접 대조"
+      }
+    ];
+
+    function loadState() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          const init = seed.map((x, i) => ({ id: i + 1, ...x, done: false, note: "" }));
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(init));
+          return init;
+        }
+        return JSON.parse(raw);
+      } catch {
+        return seed.map((x, i) => ({ id: i + 1, ...x, done: false, note: "" }));
+      }
+    }
+
+    function saveState(data) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    let rows = loadState();
+    const tbody = document.getElementById("tbody");
+    const search = document.getElementById("search");
+    const count = document.getElementById("count");
+
+    function render() {
+      const q = search.value.trim().toLowerCase();
+      const filtered = rows.filter(r => {
+        const all = `${r.issue} ${r.summary} ${r.point} ${r.note}`.toLowerCase();
+        return all.includes(q);
+      });
+
+      tbody.innerHTML = "";
+      for (const r of filtered) {
+        const tr = document.createElement("tr");
+        if (r.done) tr.classList.add("done");
+
+        tr.innerHTML = `
+          <td><input type="checkbox" ${r.done ? "checked" : ""} data-id="${r.id}" class="doneChk" /></td>
+          <td><strong>${r.issue}</strong><div class="badge">#${r.id}</div></td>
+          <td>${r.summary}</td>
+          <td>${r.point}</td>
+          <td><textarea class="note" data-id="${r.id}" placeholder="현장 메모 입력...">${escapeHtml(r.note)}</textarea></td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      count.textContent = `총 ${rows.length}건 중 ${filtered.length}건 표시 | 완료 ${rows.filter(x => x.done).length}건`;
+    }
+
+    function escapeHtml(s) {
+      return (s || "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    document.addEventListener("change", (e) => {
+      if (e.target.classList.contains("doneChk")) {
+        const id = Number(e.target.dataset.id);
+        rows = rows.map(r => r.id === id ? { ...r, done: e.target.checked } : r);
+        saveState(rows);
+        render();
+      }
+    });
+
+    document.addEventListener("input", (e) => {
+      if (e.target.classList.contains("note")) {
+        const id = Number(e.target.dataset.id);
+        rows = rows.map(r => r.id === id ? { ...r, note: e.target.value } : r);
+        saveState(rows);
+      }
+    });
+
+    search.addEventListener("input", render);
+
+    document.getElementById("resetFilter").addEventListener("click", () => {
+      search.value = "";
+      render();
+    });
+
+    document.getElementById("resetData").addEventListener("click", () => {
+      if (!confirm("체크와 메모를 초기화할까요?")) return;
+      rows = seed.map((x, i) => ({ id: i + 1, ...x, done: false, note: "" }));
+      saveState(rows);
+      render();
+    });
+
+    document.getElementById("exportBtn").addEventListener("click", () => {
+      const blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const now = new Date();
+      const ts = `${now.getFullYear()}${String(now.getMonth()+1).padStart(2,"0")}${String(now.getDate()).padStart(2,"0")}`;
+      a.href = url;
+      a.download = `osh-qna-viewer-${ts}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    render();
+  </script>
+</body>
+</html>
